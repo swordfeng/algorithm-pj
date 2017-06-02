@@ -87,13 +87,6 @@ var k int
 
 var nodes, newnodes [NODELEN]Node
 
-type ByNodeTimes struct {
-    nodeseq []int
-}
-func (me *ByNodeTimes) Len() int { return len(me.nodeseq) }
-func (me *ByNodeTimes) Less(i, j int) bool { return nodes[me.nodeseq[i]].times < nodes[me.nodeseq[j]].times }
-func (me *ByNodeTimes) Swap(i, j int) { me.nodeseq[i], me.nodeseq[j] = me.nodeseq[j], me.nodeseq[i] }
-
 func doWork() int {
     nodeseq := make([]int, n)
     nodeseqNext := make([]int, 0, n)

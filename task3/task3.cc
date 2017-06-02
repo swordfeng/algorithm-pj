@@ -23,7 +23,7 @@ enum OP {
 struct Log {
     OP op : 2;
     int x : 14;
-    char c : 2;
+    char c : 8;
     long long last : 35;
 };
 #pragma pack(pop)
@@ -45,6 +45,7 @@ mutex pool_lock[2];
 condition_variable pool_notif[2];
 bool exiting = false;
 
+char convchar(char c);
 void saver() {
     size_t b = 0;
     long long pos = 0;
@@ -54,7 +55,7 @@ void saver() {
         while (!write_full[b]) pool_notif[b].wait(lk);
         for (size_t i = 0; i < LOG_POOL_SIZE; i++) {
             Log &l = log_pool[b][i];
-            uint64_t line = (uint64_t(l.op) << 51) | (uint64_t(l.x) << 37) | (uint64_t(l.c) << 35) | (uint64_t)l.last;
+            uint64_t line = (uint64_t(l.op) << 51) | (uint64_t(l.x) << 37) | (uint64_t(convchar(l.c)) << 35) | (uint64_t)l.last;
             memcpy(&pool_data[i*7], &line, 7);
         }
         // compress!
@@ -94,21 +95,19 @@ char convchar(char c) {
         case 'G': return 2;
         case 'T': return 3;
     }
-    exit(255);
+    return 0;
 }
 
 long long ins(int x, char c, long long last) {
-    c = convchar(c);
     Log log = {INS, x, c, last};
     return savelog(log);
 }
 long long sub(int x, char c, long long last) {
-    c = convchar(c);
     Log log = {SUB, x, c, last};
     return savelog(log);
 }
 long long del(int x, long long last) {
-    Log log = {DEL, x, 0, last};
+    Log log = {DEL, x, 'A', last};
     return savelog(log);
 }
 

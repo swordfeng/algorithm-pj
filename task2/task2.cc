@@ -13,7 +13,7 @@ enum OP {
     DEL = 2
 };
 
-const int NODELEN = 1000000;
+const int NODELEN = 10000;
 
 struct Log;
 extern const shared_ptr<Log> nil;

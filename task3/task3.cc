@@ -4,6 +4,12 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <cstring>
+
+#include <lzo/minilzo.h>
 
 using namespace std;
 
@@ -27,7 +33,57 @@ const int UB = 30000;
 const long long log_nil = 0;
 long long log_count = 0;
 
+const size_t LOG_POOL_SIZE = 300000 * 16 * 8;
+Log log_pool[2][LOG_POOL_SIZE];
+size_t cur_pool = 0;
+size_t cur_pos = 0;
+uint8_t pool_data[LOG_POOL_SIZE * 7];
+uint8_t pool_data_lzo[LOG_POOL_SIZE * 7 + 1024];
+uint8_t lzo_work[LZO1X_MEM_COMPRESS];
+bool write_full[2] = {false, false};
+mutex pool_lock[2];
+condition_variable pool_notif[2];
+bool exiting = false;
+
+void saver() {
+    size_t b = 0;
+    long long pos = 0;
+    char filename[100];
+    while (!exiting) {
+        unique_lock<mutex> lk(pool_lock[b]);
+        while (!write_full[b]) pool_notif[b].wait(lk);
+        for (size_t i = 0; i < LOG_POOL_SIZE; i++) {
+            Log &l = log_pool[b][i];
+            uint64_t line = (uint64_t(l.op) << 51) | (uint64_t(l.x) << 37) | (uint64_t(l.c) << 35) | (uint64_t)l.last;
+            memcpy(&pool_data[i*7], &line, 7);
+        }
+        // compress!
+        lzo_uint out_size = sizeof(pool_data_lzo);
+        lzo1x_1_compress(pool_data, sizeof(pool_data), pool_data_lzo, &out_size, lzo_work);
+        sprintf(filename, "%lld.data.lzo", pos);
+        FILE *f = fopen(filename, "wb");
+        fwrite(pool_data_lzo, out_size, 1, f);
+        fclose(f);
+        write_full[b] = false;
+        pool_notif[b].notify_one();
+        b = 1 - b;
+        pos += LOG_POOL_SIZE;
+    }
+}
+
 long long savelog(Log log) {
+    if (cur_pos == 0) {
+        unique_lock<mutex> lk(pool_lock[cur_pool]);
+        while (write_full[cur_pool]) pool_notif[cur_pool].wait(lk);
+    }
+    log_pool[cur_pool][cur_pos++] = log;
+    if (cur_pos == LOG_POOL_SIZE) {
+        unique_lock<mutex> lk(pool_lock[cur_pool]);
+        write_full[cur_pool] = true;
+        pool_notif[cur_pool].notify_one();
+        cur_pool = 1 - cur_pool;
+        cur_pos = 0;
+    }
     return ++log_count;
 }
 
@@ -258,6 +314,7 @@ void updatePreWork(int j, int i) {
 void addEdge(int i, int j);
 void makeGraph();
 int main() {
+    thread log_thread(saver);
     cin >> a >> n;
     for (int i = 0; i < n; i++) {
         cin >> s[i];
@@ -266,6 +323,12 @@ int main() {
     makeGraph();
     int j = doWork();
     printf("%d\n", nodes[j].times);
+    printf("log reference: %lld\n", nodes[j].log);
+    // finish saving log
+    write_full[cur_pool] = true;
+    exiting = true;
+    pool_notif[cur_pool].notify_one();
+    log_thread.join();
     return 0;
 }
 

@@ -81,6 +81,11 @@ shared_ptr<Log> del(int x, shared_ptr<Log> last) {
     return make_shared<Log>({DEL, x, 0, last});
 }
 
+struct PreWorkState {
+    shared_ptr<Log> log;
+    int times;
+}
+
 struct Node {
     shared_ptr<Log> log;
     int times;
@@ -88,48 +93,37 @@ struct Node {
     vector<PreWorkState> preWork;
 }
 
-struct PreWorkState {
-    shared_ptr<Log> log;
-    int times;
-}
+string a;
+vector<int> graph[NODELEN], prevgraph[NODELEN];
+string s[NODELEN];
+int n;
+int k;
 
-var a string
-var graph, prevgraph [NODELEN][]int
-var s [NODELEN]string
-var n int
-var k int
+Node nodes[NODELEN], newnodes[NODELEN];
 
-var nodes, newnodes [NODELEN]Node
-
-type ByNodeTimes struct {
-    nodeseq []int
-}
-func (me *ByNodeTimes) Len() int { return len(me.nodeseq) }
-func (me *ByNodeTimes) Less(i, j int) bool { return nodes[me.nodeseq[i]].times < nodes[me.nodeseq[j]].times }
-func (me *ByNodeTimes) Swap(i, j int) { me.nodeseq[i], me.nodeseq[j] = me.nodeseq[j], me.nodeseq[i] }
-
-func doWork() int {
-    nodeseq := make([]int, n)
-    nodeseqNext := make([]int, 0, n)
-    pending := make([]int, 0, n)
-    pendingNext := make([]int, 0, n)
-    marked := make([]bool, n)
+int doWork() {
+    vector<int> nodeseq(n), nodeseqNext, pending, pendingNext;
+    nodeseqNext.reserve(n);
+    pending.reserve(n);
+    pendingNext.reserve(n);
+    vector<bool> marked(n);
     // init
-    for j := 0; j < n; j++ {
-        nodeseq[j] = j
-        nodes[j].preWork = make([]PreWorkState, k + 1)
+    for (int j = 0; j < n; j++) {
+        nodeseq[j] = j;
+        nodes[j].preWork.resize(k + 1);
         updatePreWork(j, 0)
-        nodes[j].times = nodes[j].preWork[k].times
-        nodes[j].log = nodes[j].preWork[k].log
-        newnodes[j].times = -1
+        nodes[j].times = nodes[j].preWork[k].times;
+        nodes[j].log = nodes[j].preWork[k].log;
+        newnodes[j].times = -1;
     }
     // work
-    for i := 1; i <= len(a); i++ {
-        if i % 100 == 0 {
-            Fprintln(os.Stderr, i)
+    for (int i = 1; i <= a.size(); i++) {
+        if (i % 100 == 0) {
+            fprintf(stderr, "%d\n", i);
         }
-        pn := nodes[nodeseq[0]].times
-        for _, j := range nodeseq {
+        int pn = nodes[nodeseq[0]].times;
+        for (int j : nodeseq) {
+//=================================================================================
             // flush queue
             p := nodes[j].times
             if p > pn + 1 {

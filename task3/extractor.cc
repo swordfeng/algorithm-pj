@@ -36,6 +36,7 @@ void open_pool(long long pool) {
     long sz = ftell(f);
     fseek(f, 0, SEEK_SET);
     fread(pool_data_lzo, sz, 1, f);
+    fclose(f);
     lzo_uint out_size = sizeof(pool_data);
     lzo1x_decompress(pool_data_lzo, sz, (uint8_t *)pool_data, &out_size, lzo_work);
     if (out_size != sizeof(pool_data)) {
@@ -54,7 +55,7 @@ Log extract(long long ref) {
 
 int count = 0;
 void printlog(long long ref) {
-    fprintf(stderr, "%d\n", ++count);
+    fprintf(stderr, "%d\t%lld\n", ++count, ref);
     if (ref == 0) return;
     Log l = extract(ref);
     printlog(l.last);
@@ -70,7 +71,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "%s <log_reference>\n", argv[0]);
     }
     long long logref;
-    sscanf(argv[1], "%lld", &logref);
+    sscanf(argv[1], "%llu", &logref);
     printlog(logref);
     return 0;
 }

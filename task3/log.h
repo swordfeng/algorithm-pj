@@ -8,8 +8,8 @@ enum OP {
 #pragma pack(push, 1)
 struct Log {
     OP op : 2;
-    int x : 17;
+    unsigned int x : 17;
     char c : 8;
-    long long last : 37;
+    unsigned long long last : 37;
 };
 #pragma pack(pop)

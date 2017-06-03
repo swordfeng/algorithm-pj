@@ -11,25 +11,14 @@
 
 #include <lzo/minilzo.h>
 
+#include "log.h"
+
 using namespace std;
-
-enum OP {
-    INS = 0,
-    SUB = 1,
-    DEL = 2
-};
-
-struct Log {
-    OP op;
-    int x;
-    char c;
-    long long last;
-};
 
 const size_t LOG_POOL_SIZE = 300000 * 16 * 8;
 
-uint8_t pool_data[LOG_POOL_SIZE * 7];
-uint8_t pool_data_lzo[LOG_POOL_SIZE * 7 + 1024];
+Log pool_data[LOG_POOL_SIZE];
+uint8_t pool_data_lzo[LOG_POOL_SIZE * sizeof(Log) + 2048];
 uint8_t lzo_work[LZO1X_MEM_DECOMPRESS];
 
 long long cur_pool = -1;
@@ -40,7 +29,7 @@ void open_pool(long long pool) {
     sprintf(filename, "%lld.data.lzo", pool * LOG_POOL_SIZE);
     FILE *f = fopen(filename, "rb");
     if (!f) {
-        printf("file not found: %s\n", filename);
+        fprintf(stderr, "file not found: %s\n", filename);
         exit(255);
     }
     fseek(f, 0, SEEK_END);
@@ -48,39 +37,24 @@ void open_pool(long long pool) {
     fseek(f, 0, SEEK_SET);
     fread(pool_data_lzo, sz, 1, f);
     lzo_uint out_size = sizeof(pool_data);
-    lzo1x_decompress(pool_data_lzo, sz, pool_data, &out_size, lzo_work);
+    lzo1x_decompress(pool_data_lzo, sz, (uint8_t *)pool_data, &out_size, lzo_work);
     if (out_size != sizeof(pool_data)) {
         exit(254);
     }
     cur_pool = pool;
 }
 
-char unconvchar(char c) {
-    switch (c) {
-        case 0: return 'A';
-        case 1: return 'C';
-        case 2: return 'G';
-        case 3: return 'T';
-    }
-    exit(255);
-}
-
 Log extract(long long ref) {
     --ref;
-    Log l;
     long long pool = ref / LOG_POOL_SIZE;
     long long pos = ref % LOG_POOL_SIZE;
     open_pool(pool);
-    uint64_t line = 0;
-    memcpy(&line, &pool_data[pos * 7], 7);
-    l.last = line & ((1LL<<35)-1);
-    l.c = unconvchar(char((line>>35) & ((1LL<<2)-1)));
-    l.x = int((line>>37) & ((1LL<<14)-1));
-    l.op = (OP)(line>>51);
-    return l;
+    return pool_data[pos];
 }
 
+int count = 0;
 void printlog(long long ref) {
+    fprintf(stderr, "%d\n", ++count);
     if (ref == 0) return;
     Log l = extract(ref);
     printlog(l.last);
@@ -93,7 +67,7 @@ void printlog(long long ref) {
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        printf("%s <log_reference>\n", argv[0]);
+        fprintf(stderr, "%s <log_reference>\n", argv[0]);
     }
     long long logref;
     sscanf(argv[1], "%lld", &logref);

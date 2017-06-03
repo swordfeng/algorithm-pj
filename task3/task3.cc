@@ -8,25 +8,12 @@
 #include <condition_variable>
 #include <thread>
 #include <cstring>
-
 #include <lzo/minilzo.h>
+#include <cassert>
+
+#include "log.h"
 
 using namespace std;
-
-enum OP {
-    INS = 0,
-    SUB = 1,
-    DEL = 2
-};
-
-#pragma pack(push, 1)
-struct Log {
-    OP op : 2;
-    int x : 14;
-    char c : 8;
-    long long last : 35;
-};
-#pragma pack(pop)
 
 const int NODELEN = 1000000;
 const int UB = 30000;
@@ -37,7 +24,6 @@ const size_t LOG_POOL_SIZE = 300000 * 16 * 8;
 Log log_pool[2][LOG_POOL_SIZE];
 size_t cur_pool = 0;
 size_t cur_pos = 0;
-uint8_t pool_data[LOG_POOL_SIZE * 7];
 uint8_t pool_data_lzo[LOG_POOL_SIZE * 7 + 1024];
 uint8_t lzo_work[LZO1X_MEM_COMPRESS];
 bool write_full[2] = {false, false};
@@ -45,7 +31,6 @@ mutex pool_lock[2];
 condition_variable pool_notif[2];
 bool exiting = false;
 
-char convchar(char c);
 void saver() {
     size_t b = 0;
     long long pos = 0;
@@ -54,14 +39,10 @@ void saver() {
         unique_lock<mutex> lk(pool_lock[b]);
         while ((!write_full[b]) && (!exiting)) pool_notif[b].wait(lk);
         if (!write_full[b]) break;
-        for (size_t i = 0; i < LOG_POOL_SIZE; i++) {
-            Log &l = log_pool[b][i];
-            uint64_t line = (uint64_t(l.op) << 51) | (uint64_t(l.x) << 37) | (uint64_t(convchar(l.c)) << 35) | (uint64_t)l.last;
-            memcpy(&pool_data[i*7], &line, 7);
-        }
         // compress!
         lzo_uint out_size = sizeof(pool_data_lzo);
-        lzo1x_1_compress(pool_data, sizeof(pool_data), pool_data_lzo, &out_size, lzo_work);
+        assert(sizeof(log_pool[b]) == 8 * LOG_POOL_SIZE);
+        lzo1x_1_compress((uint8_t *)log_pool[b], sizeof(log_pool[b]), pool_data_lzo, &out_size, lzo_work);
         sprintf(filename, "%lld.data.lzo", pos);
         FILE *f = fopen(filename, "wb");
         fwrite(pool_data_lzo, out_size, 1, f);
@@ -87,16 +68,6 @@ long long savelog(Log log) {
         cur_pos = 0;
     }
     return ++log_count;
-}
-
-char convchar(char c) {
-    switch (c) {
-        case 'A': return 0;
-        case 'C': return 1;
-        case 'G': return 2;
-        case 'T': return 3;
-    }
-    return 0;
 }
 
 long long ins(int x, char c, long long last) {
@@ -325,10 +296,17 @@ int main() {
     printf("%d\n", nodes[j].times);
     printf("log reference: %lld\n", nodes[j].log);
     // finish saving log
-    write_full[cur_pool] = true;
-    exiting = true;
-    pool_notif[cur_pool].notify_one();
+    {
+        unique_lock<mutex> lk(pool_lock[cur_pool]);
+        write_full[cur_pool] = true;
+        exiting = true;
+        pool_notif[cur_pool].notify_one();
+    }
     log_thread.join();
+    if (write_full[cur_pool]) {
+        fprintf(stderr, "wtf\n");
+        while (1);
+    }
     return 0;
 }
 

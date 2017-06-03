@@ -24,7 +24,7 @@ const size_t LOG_POOL_SIZE = 300000 * 16 * 8;
 Log log_pool[2][LOG_POOL_SIZE];
 size_t cur_pool = 0;
 size_t cur_pos = 0;
-uint8_t pool_data_lzo[LOG_POOL_SIZE * 7 + 1024];
+uint8_t pool_data_lzo[LOG_POOL_SIZE * sizeof(Log) + 1024];
 uint8_t lzo_work[LZO1X_MEM_COMPRESS];
 bool write_full[2] = {false, false};
 mutex pool_lock[2];

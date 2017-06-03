@@ -50,9 +50,10 @@ void saver() {
     size_t b = 0;
     long long pos = 0;
     char filename[100];
-    while (!exiting) {
+    while (true) {
         unique_lock<mutex> lk(pool_lock[b]);
-        while (!write_full[b]) pool_notif[b].wait(lk);
+        while ((!write_full[b]) && (!exiting)) pool_notif[b].wait(lk);
+        if (!write_full[b]) break;
         for (size_t i = 0; i < LOG_POOL_SIZE; i++) {
             Log &l = log_pool[b][i];
             uint64_t line = (uint64_t(l.op) << 51) | (uint64_t(l.x) << 37) | (uint64_t(convchar(l.c)) << 35) | (uint64_t)l.last;

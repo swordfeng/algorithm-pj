@@ -5,8 +5,8 @@ import Control.Monad (mapM_)
 
 data Op = Ins Int Char | Sub Int Char | Del Int
 instance Show Op where
-    show (Ins x c) = "INS " ++ show x ++ (' ' : c : [])
-    show (Sub x c) = "SUB " ++ show x ++ (' ' : c : [])
+    show (Ins x c) = "INS " ++ show x ++ [' ', c]
+    show (Sub x c) = "SUB " ++ show x ++ [' ', c]
     show (Del x)   = "DEL " ++ show x
 
 dist x y = d' ! (lx, ly) where
@@ -25,7 +25,7 @@ dist x y = d' ! (lx, ly) where
     minimumFst (x@(a, _) : y@(b, _) : rem)
         | a <= b = minimumFst $ x : rem
         | otherwise = minimumFst $ y : rem
-    minimumFst (x : []) = x
+    minimumFst [x] = x
     log (r, o) a = (r + 1, a : o)
     d' = listArray bounds $ map d $ range bounds
     bounds = ((0, 0), (lx, ly))
